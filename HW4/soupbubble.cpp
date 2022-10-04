@@ -93,8 +93,9 @@ class SoapBubble{
             y += DY[d];
             return randomsearch(x, y, d);   //期望有限
         }
-        void updatevalue(pair<int, int> term, int x, int y, int iter)   //按边缘更新价值
+        void updatevalue(pair<int, int> term, int x, int y, int iter)   //按边缘更新价值，每次只更新一个点
         {
+            //本来想做的是沿路径更新的，但是没想明白有环的时候first visit怎么设计
             int xx = term.first;
             int yy = term.second;
             bubble[y][x] = (bubble[yy][xx] + bubble[y][x] * iter) / (iter + 1);
