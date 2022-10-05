@@ -47,7 +47,7 @@ class BlackjackPolicyLearnableDefault : public BlackjackPolicyBase  //学习策�
             // simply take argmax
         }
         // n iterations for each start (initial state and first action), no need to modify.
-        int visitedtimes[11][2][22] = {0};
+        //int visitedtimes[11][2][22] = {0};
         int epsilon = 10;
         double MC(Blackjack& env)
         {
@@ -83,7 +83,7 @@ class BlackjackPolicyLearnableDefault : public BlackjackPolicyBase  //学习策�
             set_value_initial();    // REMEMBER to call set_value_initial() at the beginning
             for (int i = 0; i < n; i++)
             {
-                epsilon = 10;
+                epsilon = 10 + n / 50;      //使用动态增大的epsilon以使得估计更贴近所求策略
                 for (int j = 0; j < 1000; j++)
                     for (int dealer_shown = 1; dealer_shown <= 10; ++ dealer_shown)
                         for (int player_ace = 0; player_ace <= 1; ++ player_ace)
@@ -175,8 +175,8 @@ class BlackjackPolicyLearnableDefault : public BlackjackPolicyBase  //学习策�
         }
 };
 
-// Demonstrative play of player & dealer with default policy
-int main(){
+int main()
+{
     Blackjack env(false);
     BlackjackPolicyDefault policy;
     BlackjackPolicyLearnableDefault PP;
@@ -200,3 +200,37 @@ int main(){
     // }
     return 0;
 }
+
+/*  以下是一次运行的输出，运行时间约一分半
+在Policy:Player Without Ace中
+D_S = 3, P_S = 12时STICK
+D_S = 10, P_S = 16时STICK
+两处不符合答案
+可能是epsilon的选择上还有问题
+
+Player Without Ace              Player With Usable Ace.
+SSSSSSSSSS                              SSSSSSSSSS
+SSSSSSSSSS                              SSSSSSSSSS
+SSSSSSSSSS                              SSSSSSSSSS
+SSSSSSSSSS                              HSSSSSSSHH
+SSSSSSSSSS                              HHHHHHHHHH
+HSSSSSHHHS                            HHHHHHHHHH
+HSSSSSHHHH                              HHHHHHHHHH
+HSSSSSHHHH                              HHHHHHHHHH
+HSSSSSHHHH                              HHHHHHHHHH
+HHSSSSHHHH                              HHHHHHHHHH
+HHHHHHHHHH                              HHHHHHHHHH
+
+                      Player Without Ace                                        Player With Usable Ace.
+  0.65  0.94  0.95  0.95  0.96  0.96  0.95  0.95  0.96  0.90      0.65  0.92  0.92  0.92  0.93  0.93  0.95  0.95  0.96  0.90
+  0.15  0.64  0.65  0.66  0.67  0.70  0.77  0.79  0.76  0.44      0.15  0.64  0.65  0.66  0.67  0.70  0.77  0.79  0.76  0.43
+ -0.12  0.39  0.40  0.42  0.44  0.50  0.62  0.59  0.29 -0.02     -0.12  0.39  0.40  0.42  0.44  0.50  0.62  0.59  0.29 -0.02
+ -0.38  0.12  0.15  0.18  0.20  0.28  0.40  0.11 -0.18 -0.24     -0.35  0.12  0.15  0.18  0.20  0.28  0.40  0.11 -0.12 -0.22
+ -0.64 -0.15 -0.12 -0.08 -0.05  0.01 -0.11 -0.38 -0.42 -0.46     -0.41 -0.01  0.02  0.05  0.08  0.12  0.03 -0.09 -0.17 -0.26
+ -0.65 -0.29 -0.25 -0.21 -0.17 -0.15 -0.43 -0.47 -0.52 -0.58     -0.39 -0.03 -0.00  0.03  0.06  0.09 -0.03 -0.09 -0.17 -0.27
+ -0.62 -0.29 -0.25 -0.21 -0.17 -0.15 -0.39 -0.43 -0.49 -0.55     -0.37 -0.01  0.02  0.05  0.08  0.11  0.01 -0.05 -0.14 -0.24
+ -0.60 -0.29 -0.25 -0.21 -0.17 -0.15 -0.34 -0.39 -0.45 -0.51     -0.34  0.01  0.04  0.07  0.10  0.13  0.05 -0.01 -0.10 -0.21
+ -0.57 -0.29 -0.25 -0.21 -0.17 -0.15 -0.29 -0.34 -0.40 -0.48     -0.32  0.03  0.06  0.09  0.12  0.15  0.09  0.03 -0.06 -0.18
+ -0.53 -0.27 -0.25 -0.21 -0.17 -0.15 -0.24 -0.29 -0.36 -0.44     -0.29  0.06  0.09  0.11  0.14  0.17  0.13  0.07 -0.03 -0.15
+ -0.13  0.21  0.23  0.25  0.28  0.30  0.25  0.19  0.12  0.03     -0.01  0.35  0.37  0.39  0.41  0.44  0.43  0.37  0.29  0.17
+*/
