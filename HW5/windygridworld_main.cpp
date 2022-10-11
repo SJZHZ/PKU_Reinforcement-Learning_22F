@@ -12,10 +12,12 @@ class WindyGridWorld{
         static const int WIND_X[];
         typedef pair<int, int> State;
         bool verbose;
-        State state(){
+        State state()                   //GET state
+        {
             return make_pair(x, y);
         }
-        void set_state(int x, int y){
+        void set_state(int x, int y)
+        {
             this->x = x;
             this->y = y;
             if (verbose){
@@ -26,7 +28,8 @@ class WindyGridWorld{
         void reset(){
             set_state(0, 3);
         }
-        pair<State, double> step(int action){
+        pair<State, double> step(int action)    //状态转移
+        {
             State old_state = state();
             double reward = state_transition(action);
             if (verbose){
@@ -79,14 +82,17 @@ class WindyGridWorld{
 const char WindyGridWorld::ACTION_NAME[][16] = {"LEFT(-1,0)", "RIGHT(1,0)", "UP(0,1)", "DOWN(0,-1)"};
 const int WindyGridWorld::WIND_X[] = {0, 0, 0, 1, 1, 1, 2, 2, 1, 0};
 
-class WindyGridWorldPolicyBase{
+class WindyGridWorldPolicyBase
+{
     public:
         virtual int operator() (const WindyGridWorld::State& state) const = 0;
-        void print_path(void) const {
+        void print_path(void) const
+        {
             WindyGridWorld env = WindyGridWorld();
             WindyGridWorld::State state;
             int episode_len = 0;
-            while (not env.done()){
+            while (not env.done())
+            {
                 state = env.state();
                 cout << "(" << state.first << "," << state.second << ")->";
                 env.step((*this)(state));
@@ -117,8 +123,37 @@ class WindyGridWorldPolicySarsa : public WindyGridWorldPolicyBase{
             }
             return best_action;
         }
-        void learn(int iter = 1000000){
+
+        //新增函数episode，用于策略递归产生episode，返回步数
+        int episode(int cnt = 1, WindyGridWorld env = WindyGridWorld(), int action = -1)
+        {
+            WindyGridWorld::State state = env.state();
+            if (action == -1)       //如果调用时未指定，则依据策略生成
+                action = epsilon_greedy(state);         //e贪心
+            int x = state.first, y = state.second;
+
+            pair<WindyGridWorld::State, double> temp = env.step(action);
+            WindyGridWorld::State ss = temp.first;
+            double reward = temp.second;
+            int aa = epsilon_greedy(ss);                //e贪心
+            int xx = ss.first, yy = ss.second;
+
+            q[y][x][action] = q[y][x][action] + alpha * (reward + gamma * q[yy][xx][aa] - q[y][x][action]);
+            if (env.done())
+                return cnt;                             //返回总步数
+            else
+                return episode(cnt + 1, env, aa);       //递归进入下一步，指定好了action
+        }
+        void learn(int iter = 1000000) // SARSA策略
+        {
             // TODO
+            while (iter > 0)            //不断新建episode
+            {
+                //我最初在learn函数中【直接递归】模拟episode：未done就递归继续下一步，done就递归新建环境
+                //这样递归没有及时清除已结束的episode，迭代数万次就会【爆栈】
+                //迭代必须按episode（调用）或者step（循环）分解
+                iter -= episode();
+            }
         }
 
         void print_path(void) const {
@@ -126,10 +161,13 @@ class WindyGridWorldPolicySarsa : public WindyGridWorldPolicyBase{
             this->WindyGridWorldPolicyBase::print_path();
         }
     private:
-        double q[7][10][4];
+        // int visited[7][10][4] = {0};
+        double q[7][10][4];         //动作-价值函数
         double epsilon, alpha, gamma;
-        int epsilon_greedy(const WindyGridWorld::State& state){
-            if (rand() % 100000 < epsilon * 100000){
+        int epsilon_greedy(const WindyGridWorld::State& state)  //随机
+        {
+            if (rand() % 100000 < epsilon * 100000)
+            {
                 return rand() % 4;
             }
             return (*this)(state);
@@ -138,13 +176,15 @@ class WindyGridWorldPolicySarsa : public WindyGridWorldPolicyBase{
 
 class WindyGridWorldPolicyQLearning : public WindyGridWorldPolicyBase{
     public:
-        WindyGridWorldPolicyQLearning(){
+        WindyGridWorldPolicyQLearning()         //构造函数初始化数据
+        {
             epsilon = 0.1;
             alpha = 0.5;
             gamma = 1.0;
             memset(q, 0, sizeof(q));
         }
-        virtual int operator() (const WindyGridWorld::State& state) const {
+        virtual int operator() (const WindyGridWorld::State& state) const   //重载运算符
+        {
             int best_action = 0;
             int x = state.first, y = state.second;
             double best_value = q[y][x][0];
@@ -157,8 +197,33 @@ class WindyGridWorldPolicyQLearning : public WindyGridWorldPolicyBase{
             return best_action;
         }
 
-        void learn(int iter = 1000000){
+        //新增函数episode，用于策略递归产生episode，返回步数
+        int episode(int cnt = 1, WindyGridWorld env = WindyGridWorld())
+        {
+            WindyGridWorld::State state = env.state();
+            int action = epsilon_greedy(state);         //e贪心
+            int x = state.first, y = state.second;
+
+            pair<WindyGridWorld::State, double> temp = env.step(action);
+            WindyGridWorld::State ss = temp.first;
+            double reward = temp.second;
+            int aa = (*this)(ss);                       //最大值
+            int xx = ss.first, yy = ss.second;
+
+            q[y][x][action] = q[y][x][action] + alpha * (reward + gamma * q[yy][xx][aa] - q[y][x][action]);
+            if (env.done())
+                return cnt;                             //返回总步数
+            else
+                return episode(cnt + 1, env);           //递归进入下一步
+        }
+        void learn(int iter = 1000000)          //QLearning
+        {
             //TODO
+            while (iter > 0)
+            {
+                iter -= episode();
+                //cout << iter << endl;
+            }
         }
 
         void print_path(void) const {
@@ -180,7 +245,9 @@ class WindyGridWorldPolicyQLearning : public WindyGridWorldPolicyBase{
 #include <chrono>
 #include <thread>
 
-int main(){
+int main()
+{
+    //srand(time(nullptr));
     WindyGridWorldPolicySarsa policy_sarsa;
     policy_sarsa.learn();
     policy_sarsa.print_path();
@@ -190,3 +257,12 @@ int main(){
     policy_q.print_path();
     return 0;
 }
+/*
+测试结果
+Sarsa result:
+(0,3)->(1,3)->(2,3)->(3,3)->(4,4)->(5,5)->(6,6)->(7,6)->(8,6)->(9,6)->(9,5)->(9,4)->(9,3)->(9,2)->(8,2)->(7,3).
+Episode length: 15
+Q learning result:
+(0,3)->(1,3)->(2,3)->(3,3)->(4,4)->(5,5)->(6,6)->(7,6)->(8,6)->(9,6)->(9,5)->(9,4)->(9,3)->(9,2)->(8,2)->(7,3).
+Episode length: 15
+*/
