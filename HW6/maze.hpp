@@ -11,7 +11,7 @@ class MazeEnv{
     public:
         const static int EMPTY=0, WALL=1;
         const static int LEFT=0, RIGHT=1, UP=2, DOWN=3;
-        
+
         const int max_x, max_y;
         const int start_x, start_y, goal_x, goal_y;
         const double step_reward, goal_reward;
@@ -19,15 +19,15 @@ class MazeEnv{
         typedef int* Maze;
         typedef pair<int, int> State;
         typedef struct {State next_state; double reward; bool done;} StepResult;
-        
-        MazeEnv(void* m, 
-            int m_x, int m_y, 
-            int s_x, int s_y, 
-            int g_x, int g_y, 
+
+        MazeEnv(void* m,
+            int m_x, int m_y,
+            int s_x, int s_y,
+            int g_x, int g_y,
             double step_r=0.0, double goal_r=1.0) :
-            max_x(m_x), max_y(m_y), 
-            start_x(s_x), start_y(s_y), 
-            goal_x(g_x), goal_y(g_y), 
+            max_x(m_x), max_y(m_y),
+            start_x(s_x), start_y(s_y),
+            goal_x(g_x), goal_y(g_y),
             step_reward(step_r), goal_reward(goal_r){
             maze = new int[m_x * m_y];
             memcpy(maze, m, sizeof(int) * m_x * m_y);
@@ -63,11 +63,11 @@ class MazeEnv{
         inline bool is_goal_state(const State& state) const {
             return state.first == goal_x and state.second == goal_y;
         }
-        
+
         inline bool is_start_state(const State& state) const {
             return state.first == start_x and state.second == start_y;
         }
-        
+
         bool done() const {
             return is_goal_state(state());
         }
@@ -102,13 +102,13 @@ class MazeEnv{
             StepResult result = {state(), is_done ? goal_reward : step_reward, is_done};
             return result;
         }
-        
+
         State reset(){
             x = start_x;
             y = start_y;
             return state();
         }
-        
+
         void set_state(const State& state){
             assert(is_valid_state(state));
             x = state.first;
@@ -118,6 +118,12 @@ class MazeEnv{
         void render() const {
             print_maze();
         }
+
+        void changebit(int pos)
+        {
+            maze[pos] = 1 - maze[pos];
+        }
+
 
     private:
         Maze maze;

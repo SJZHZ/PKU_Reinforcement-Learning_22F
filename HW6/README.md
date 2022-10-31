@@ -6,6 +6,7 @@
 ### 提示：
   1. 样例中已经实现Q学习算法可供参考。
   2. 对于Dyna-Q / Q+算法的planning步骤，可以直接使用Maze环境，无需自己学习一个环境模型。
+
 ## DiscreteCartPole
   在DiscreteCartPole环境上实现n-step TD学习算法，对比不同n（至少3种）对算法效果的影响，撰写实验报告并提交代码。
 ### 提示：
