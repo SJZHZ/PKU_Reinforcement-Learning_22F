@@ -10,12 +10,17 @@ import numpy as np
 import os
 from typing import Dict, Tuple, List
 
-class DQN(nn.Module):
-    def __init__(self, in_dim, out_dim):
+class DQN(nn.Module):       # 模型
+    def init(self, m:nn.Module):                                    # 初始化模型
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight)                # 某种合适的初值
+            nn.init.constant_(m.bias, 0)
+
+    def __init__(self, in_dim, out_dim):                            # 构造模型
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
-        self.network = nn.Sequential
+        self.network = nn.Sequential                        # 三层线性变换，中间用relu连接
         (
             nn.Linear(in_dim, (in_dim+out_dim), bias=True),
             nn.ReLU(),
@@ -23,29 +28,24 @@ class DQN(nn.Module):
             nn.ReLU(),
             nn.Linear((in_dim+out_dim), out_dim, bias=True)
         )
-        self.network.apply(self.init)
+        self.network.apply(self, fn=self.init)
 
-    def init(self, m:nn.Module):
-        if isinstance(m, nn.Linear):
-            nn.init.xavier_normal_(m.weight)
-            nn.init.constant_(m.bias, 0)
 
-    def forward(self, state_batch:torch.Tensor) -> torch.Tensor:
+    def forward(self, state_batch:torch.Tensor) -> torch.Tensor:    # 前传
         return self.network(state_batch)
 
-class DQNTrainer:
-    DataType = Tuple[np.ndarray, int, float, np.ndarray]
-    def __init__(self, args:Dict):
+class DQNTrainer:           # 训练器
+    DataType = Tuple[np.ndarray, int, float, np.ndarray]            # 类型定义
+    def __init__(self, args:Dict):                                  # 构造函数
         for k,v in args.items():
             setattr(self, k, v)
 
         self.epsilon = self.epsilon_lower
         self.buffer = list()
         self.buffer_pointer = 0
-        self.network.to(self.device)
+        self.network.to(self.device)                # 选择GPU
 
-
-    def add_to_buffer(self, data:DataType):
+    def add_to_buffer(self, data:DataType):                         # 循环放入buffer
         if len(self.buffer) < self.buffer_size:
             self.buffer.append(data)
         else:
@@ -53,15 +53,19 @@ class DQNTrainer:
         self.buffer_pointer += 1
         self.buffer_pointer %= self.buffer_size
 
-    def sample_batch(self) -> List[DataType]:
+    def sample_batch(self) -> List[DataType]:                       # 批量给出样本
         return random.sample(self.buffer, self.batch_size)
 
-    def epsilon_greedy(self, state:np.ndarray):
+    def epsilon_greedy(self, state:np.ndarray):                     # e-贪心
         if random.random() < self.epsilon:
             return random.randint(0, self.env.action_space.n-1)
         return self.greedy(state)
 
-    def greedy(self, state):
+    def greedy(self, state):                                        # 贪心
+        # network是神经网络模型
+        # operator()即模型的作用
+        # detach把输出张量从模型（计算图）分离出来
+        # 返回的张量是一个action的概率分布，取argmax即贪心
         return self.network(torch.tensor(state, device=self.device)).detach().cpu().numpy().argmax()
 
     def update_model(self, total_step):
@@ -80,7 +84,7 @@ class DQNTrainer:
         loss.backward()
         self.optimizer.step()
 
-    def epsilon_decay(self, total_step):
+    def epsilon_decay(self, total_step):                            # epsilon衰减
         self.epsilon = self.epsilon_lower + (self.epsilon_upper-self.epsilon_lower) * math.exp(-total_step/self.epsilon_decay_freq)
 
     def train(self):
@@ -91,18 +95,19 @@ class DQNTrainer:
             while not done:
                 total_step += 1
                 action = self.epsilon_greedy(state)
-                self.epsilon_decay(total_step)
                 new_state, reward, done, _ = self.env.step(action)
                 if done:
                     reward = self.end_reward
+                self.add_to_buffer((state, action, reward, new_state))
+                self.update_model(total_step)
+                state = new_state
+
                 if self.render:
                     env.render()
-                self.add_to_buffer((state, action, reward, new_state))
-                state = new_state
-                self.update_model(total_step)
-                self.save_model(i)
+                self.epsilon_decay(total_step)
+                # self.save_model(i)
 
-    def save_model(self, i):
+    def save_model(self, i):                                        # 保存模型
         if i % self.save_freq == 0:
             torch.save(self.network.state_dict(), os.path.join(self.save_path, f'{i}.pkl'))
 
@@ -113,17 +118,18 @@ if __name__ == '__main__':
     env = gym.make(env_name)
     network = DQN(in_dim=env.observation_space.shape[0], out_dim=env.action_space.n)
     latest_checkpoint = 0
-    if save_path not in os.listdir():
-        os.mkdir(save_path)
-    elif len(os.listdir(save_path)) != 0:
-        latest_checkpoint = max([int(file_name.split('.')[0]) for file_name in os.listdir(save_path)])
-        print(f'{latest_checkpoint}.pkl loaded')
-        network.load_state_dict(torch.load(os.path.join(save_path, f'{latest_checkpoint}.pkl')))
+
+    # if save_path not in os.listdir():
+    #     os.mkdir(save_path)
+    # elif len(os.listdir(save_path)) != 0:
+    #     latest_checkpoint = max([int(file_name.split('.')[0]) for file_name in os.listdir(save_path)])
+    #     print(f'{latest_checkpoint}.pkl loaded')
+    #     network.load_state_dict(torch.load(os.path.join(save_path, f'{latest_checkpoint}.pkl')))
 
     trainer = DQNTrainer({
         'env':env,
         'env_name':env_name,
-        'render':True,
+        'render':False,
         'end_reward':-1,
         'network':network,
         'start_iter':latest_checkpoint,
