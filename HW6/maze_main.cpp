@@ -39,7 +39,6 @@ class MazePolicyQLearning : public MazePolicyBase
             for (int i = 0; i < e.max_x * e.max_y * 4; ++ i)
                 q[i] = 1.0 / (rand() % (e.max_x * e.max_y) + 1);
         }
-
         ~MazePolicyQLearning()                                      //析构函数
         {
             //env.~MazeEnv();
@@ -121,7 +120,6 @@ class MazePolicyQLearning : public MazePolicyBase
         double epsilon, alpha, gamma;
 };
 
-
 class MazePolicyDQ : public MazePolicyBase      //由于QLearning中有私有成员变量，不方便继承，干脆直接复制一份
 {
     public:
@@ -158,7 +156,8 @@ class MazePolicyDQ : public MazePolicyBase      //由于QLearning中有私有成
             srand(2022);
             for (int i = 0; i < e.max_x * e.max_y * 4; ++ i)
                 q[i] = 1.0 / (rand() % (e.max_x * e.max_y) + 1);
-            memset(model_Visited, 0, sizeof(model_Visited));
+            memset(model_Reward, 0, env.max_x * env.max_y * 4 * sizeof(int));
+            memset(model_Visited, 0, env.max_x * env.max_y * 4 * sizeof(int));
             model_PrevState.clear();
         }
 
@@ -209,8 +208,9 @@ class MazePolicyDQ : public MazePolicyBase      //由于QLearning中有私有成
                     // model learning
                     model_Reward[locate(state, action)] = reward;
                     model_NextState[locate(state, action)] = next_state;
+                    //if (model_Visited[locate(state, action)] <= 0)
+                        model_PrevState.push_back(locate(state, action));
                     model_Visited[locate(state, action)]++;
-                    model_PrevState.push_back(locate(state, action));
 
                     for (int j = 0; j < T; j++)
                     {
@@ -273,8 +273,8 @@ class MazePolicyDQ : public MazePolicyBase      //由于QLearning中有私有成
         }
 
         MazeEnv env;
-        //长宽不固定，不能直接生成三维矩阵
-        double* q;
+        double* q;      //长宽不固定，不能直接生成三维矩阵
+
         // MODEL[S,A] <--> R, S'
         double* model_Reward;
         MazeEnv::State* model_NextState;
@@ -293,7 +293,7 @@ class MazePolicyDQP : public MazePolicyDQ
         {
             return K * sqrt(global_Time - S_A_Time[S_A]);
         }
-        int operator()(const MazeEnv::State& state) const
+        int KT_best(const MazeEnv::State& state)const
         {
             int best_action = 0;
             double best_value = q[locate(state, 0)] + KT(locate(state, 0));
@@ -309,27 +309,11 @@ class MazePolicyDQP : public MazePolicyDQ
             }
             return best_action;
         }
-        // int DQP(const MazeEnv::State& state)    //DQP最优
-        // {
-        //     int best_action = 0;
-        //     double best_value = q[locate(state, 0)] + K * sqrt(global_Time - S_A_Time[locate(state, 0)]);
-        //     double q_s_a;
-        //     for (int action = 1; action < 4; ++ action)
-        //     {
-        //         q_s_a = q[locate(state, action)] + K * sqrt(global_Time - S_A_Time[locate(state, action)]);
-        //         if (q_s_a > best_value)
-        //         {
-        //             best_value = q_s_a;
-        //             best_action = action;
-        //         }
-        //     }
-        //     return best_action;
-        // }
         MazePolicyDQP(const MazeEnv& e, double KK) : MazePolicyDQ(e), K(KK)
         {
             global_Time = 0;
             S_A_Time = new int[e.max_y * e.max_x * 4];
-            memset(S_A_Time, 0, sizeof(S_A_Time));
+            memset(S_A_Time, 0, env.max_x * env.max_y * 4 * sizeof(int));
         }
         ~MazePolicyDQP()
         {
@@ -345,7 +329,6 @@ class MazePolicyDQP : public MazePolicyDQ
             int episode_step;
             MazeEnv::State state, next_state;
             MazeEnv::StepResult step_result;
-
             for (int i = 0; i < iter; ++ i)
             {
                 state = env.reset();
@@ -359,7 +342,7 @@ class MazePolicyDQP : public MazePolicyDQ
                     reward = step_result.reward;
                     done = step_result.done;
                     ++ episode_step;
-                    next_action = (*this)(next_state);      //DQP选取最优动作
+                    next_action = (*this)(next_state);      //选取最优动作，no DQP
                     q[locate(state, action)] +=             //更新动作价值
                         alpha * (gamma * q[locate(next_state, next_action)] + reward - q[locate(state, action)]);
 
@@ -376,8 +359,9 @@ class MazePolicyDQP : public MazePolicyDQ
                     // model learning
                     model_Reward[locate(state, action)] = reward;
                     model_NextState[locate(state, action)] = next_state;
+                    if (model_Visited[locate(state, action)] <= 0)
+                        model_PrevState.push_back(locate(state, action));
                     model_Visited[locate(state, action)]++;
-                    model_PrevState.push_back(locate(state, action));
 
                     for (int j = 0; j < T; j++)
                     {
@@ -388,9 +372,9 @@ class MazePolicyDQP : public MazePolicyDQ
                             //获取Reward&NextState&NextAction
                         double temp_Reward = model_Reward[temp_State_Action];
                         MazeEnv::State temp_NextState = model_NextState[temp_State_Action];
-                        int temp_NextAction = (*this)(temp_NextState);          //DQP
-
-                        //planning update
+                        int temp_NextAction = (*this)(temp_NextState);
+                        // planning update
+                        temp_Reward += KT(temp_State_Action);           //和DQ不同
                         q[temp_State_Action] +=
                             alpha * (gamma * q[locate(temp_NextState, temp_NextAction)] + temp_Reward - q[temp_State_Action]);
                     }
@@ -400,23 +384,18 @@ class MazePolicyDQP : public MazePolicyDQ
                 // if (i % verbose_freq == 0)
                 //     cout << i << " episode_step : " << episode_step << endl;
             }
+
         }
-
-
-
-
-
-
 
         double K;
         int global_Time;
-        int *S_A_Time;
+        int *S_A_Time;      //最近访问时间
 };
 
 int main(){
     const int max_x = 9, max_y = 6;
 
-/*
+/*  //测试
     const int start_x = 0, start_y = 2;
     const int target_x = 8, target_y = 0;
     int maze[max_y][max_x] =
@@ -450,6 +429,7 @@ int main(){
     printf("DQ50:\n");
     DQpolicy50.print_policy();
 */
+    //Blocking
     int Blocking_Maze1[max_y][max_x] =
     {
         {0,0,0,0,0,0,0,0,0},
@@ -474,19 +454,21 @@ int main(){
 */
 
     printf("Blocking DQ5:\n");
-    MazePolicyDQ Blocking_DQ5(Blocking_Env1);
-    Blocking_DQ5.learn(100, 10, 5, 20000);
-    Blocking_DQ5.env.changebit(3 * 9 + 0);
-    Blocking_DQ5.env.changebit(3 * 9 + 8);
-    Blocking_DQ5.learn(100, 10, 5, 20000);
+    MazePolicyDQ Blocking_DQ50(Blocking_Env1);
+    Blocking_DQ50.learn(1000, 10, 50, 5000);
+    Blocking_DQ50.env.changebit(3 * 9 + 0);
+    Blocking_DQ50.env.changebit(3 * 9 + 8);
+    Blocking_DQ50.learn(1000, 10, 50, 10000);
 
     printf("\nBlocking DQP5:\n");
-    MazePolicyDQP Blocking_DQP5(Blocking_Env1, 0.0001);
-    Blocking_DQP5.learn(100, 10, 5, 20000);
-    Blocking_DQP5.env.changebit(3 * 9 + 0);
-    Blocking_DQP5.env.changebit(3 * 9 + 8);
-    Blocking_DQP5.learn(100, 10, 5, 20000);
+    MazePolicyDQP Blocking_DQP50(Blocking_Env1, 0.001);
+    Blocking_DQP50.learn(1000, 10, 50, 5000);
+    Blocking_DQP50.env.changebit(3 * 9 + 0);
+    Blocking_DQP50.env.changebit(3 * 9 + 8);
+    Blocking_DQP50.learn(1000, 10, 50, 10000);
+    printf("\n");
 
+    //Shortcut
     int Shortcut_Maze1[max_y][max_x] =
     {
         {0,0,0,0,0,0,0,0,0},
@@ -497,19 +479,21 @@ int main(){
         {0,0,0,0,0,0,0,0,0}
     };
     MazeEnv Shortcut_Env1(Shortcut_Maze1, max_x, max_y, 3, 5, 8, 0);
-    printf("\nShortcut DQ5:\n");
-    MazePolicyDQ Shortcut_DQ5(Shortcut_Env1);
-    Shortcut_DQ5.learn(1000, 10, 5, 20000);
-    Shortcut_DQ5.env.changebit(3 * 9 + 8);
-    Shortcut_DQ5.learn(1000, 10, 5, 20000);
-
-    printf("\nShortcut DQP5:\n");
-    MazePolicyDQP Shortcut_DQP5(Shortcut_Env1, 0.01);
-    Shortcut_DQP5.learn(1000, 10, 5, 20000);
-    Shortcut_DQP5.env.changebit(3 * 9 + 8);
-    Shortcut_DQP5.learn(1000, 10, 5, 20000);
+    printf("\nShortcut DQ50:\n");
+    MazePolicyDQ Shortcut_DQ50(Shortcut_Env1);
+    Shortcut_DQ50.learn(1000, 10, 50, 5000);
+    Shortcut_DQ50.env.changebit(3 * 9 + 8);
+    Shortcut_DQ50.learn(1000, 10, 50, 10000);
     printf("\n");
-    Shortcut_DQP5.print_policy();
+    Shortcut_DQ50.print_policy();
+
+    printf("\nShortcut DQP50:\n");
+    MazePolicyDQP Shortcut_DQP50(Shortcut_Env1, 0.001);
+    Shortcut_DQP50.learn(1000, 10, 50, 5000);
+    Shortcut_DQP50.env.changebit(3 * 9 + 8);
+    Shortcut_DQP50.learn(1000, 10, 50, 10000);
+    printf("\n");
+    Shortcut_DQP50.print_policy();
 
     return 0;
 }
