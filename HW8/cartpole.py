@@ -63,10 +63,19 @@ class DQNTrainer:           # 训练器
         return self.greedy(state)
 
     def greedy(self, state):                                        # 贪心
-        # network是神经网络模型，operator()即模型的作用
+        # network是神经网络模型
+        # operator()即模型的作用
         # detach把输出张量从模型（计算图）分离出来
         # 返回的张量是一个action的概率分布，取argmax即贪心
         return self.network(torch.tensor(state, device=self.device)).detach().cpu().numpy().argmax()
+
+    #     # values是模型在(S,A)对上的估计价值Vm(S)[A]
+    #         # gather通过索引取数据；unsqeeze在第dim位置插入维度为1的维；squeeze删除维度为1的维（默认全部，也可指定位置）
+    #     values = (self.network(torch.tensor(np.array(state_batch), device=self.device))
+    #         .gather(dim=1, index=torch.tensor(action_batch, device=self.device).unsqueeze(dim=1))).squeeze()
+    #     # target_values是(S,A)对的观测价值Vm(S)[A] = gamma * max(Vm(S')) + R(S,A)
+    #     target_values = (self.gamma * self.network(torch.tensor(np.array(new_state_batch), device=self.device)).detach().max(dim=1).values
+    #         + torch.tensor(reward_batch, device=self.device))
 
     def epsilon_decay(self, total_step):                            # epsilon衰减
         self.epsilon = self.epsilon_lower + (self.epsilon_upper-self.epsilon_lower) * math.exp(-total_step/self.epsilon_decay_freq)
