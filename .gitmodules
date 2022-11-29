@@ -2,3 +2,6 @@
 	path = Honor-of-Kings-Robot
 	url = git@github.com:gulang2019/Honor-of-Kings-Robot.git
 	branch = Docker
+[submodule "mahjong"]
+	path = mahjong
+	url = git@github.com:gulang2019/mahjong.git
